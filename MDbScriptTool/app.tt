@@ -1,12 +1,8 @@
 <#@ template hostspecific="true" language="C#" #>
 <#@ output extension=".html" #>
 <#
-    // Get build configuration from MSBuild parameter (set during build)
-    // Default to Debug for design-time/manual runs
-    var config = Host.ResolveParameterValue("-", "-", "BuildConfiguration");
-    if (string.IsNullOrWhiteSpace(config))
-    {
-        config = "Debug";
-    }
+    // Always use Debug mode to load individual source files
+    // BuildWebCompiler (which generates minified bundles) doesn't work in Rider
+    var config = "Debug";
 #>
 <#@ include file="app.tt.html" #>
