@@ -226,12 +226,16 @@
             </div>
           </div>
           <div class="input-group input-group-sm mb-2">
-            <div class="custom-control custom-checkbox">
-              <input type="checkbox" class="custom-control-input" id="integrated-security" />
-              <label class="custom-control-label" for="integrated-security" data-toggle="tooltip" title="The current Windows account credentials are used for authentication">Integrated Security</label>
+            <div class="input-group-prepend">
+              <label class="input-group-text" id="auth-type-lbl">Authentication</label>
             </div>
+            <select class="form-control custom-select auth-type" aria-label="Authentication" aria-describedby="auth-type-lbl">
+              <option value="sql">SQL Server Authentication</option>
+              <option value="windows">Windows Authentication</option>
+              <option value="azuread">Azure AD Default</option>
+            </select>
           </div>
-          <div class="input-group input-group-sm mb-2">
+          <div class="input-group input-group-sm mb-2 credentials-group">
             <div class="input-group-prepend">
               <span class="input-group-text" id="username-lbl">Username</span>
             </div>
@@ -246,7 +250,7 @@
               User must have access to <strong>master</strong> database to list all databases on server
             </small>
           </div>
-          <div class="input-group input-group-sm mb-2">
+          <div class="input-group input-group-sm mb-2 credentials-group">
             <div class="input-group-prepend">
               <span class="input-group-text" id="password-lbl">Password</span>
             </div>

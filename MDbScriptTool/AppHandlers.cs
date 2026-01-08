@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
@@ -296,8 +296,27 @@ namespace Tokafew420.MDbScriptTool
             }
             catch (Exception e)
             {
-                OsEvent.Emit(replyMsgName, e, connId);
+                // Include full exception chain for better diagnostics
+                var fullMessage = GetFullExceptionMessage(e);
+                _app.Logger.Error($"GetDatabases error: {fullMessage}");
+                // Emit with consistent params: (err, dbs, connId, fullMessage)
+                OsEvent.Emit(replyMsgName, e, null, connId, fullMessage);
             }
+        }
+
+        /// <summary>
+        /// Gets the full exception message including all inner exceptions.
+        /// </summary>
+        private static string GetFullExceptionMessage(Exception ex)
+        {
+            var messages = new List<string>();
+            var current = ex;
+            while (current != null)
+            {
+                messages.Add($"{current.GetType().Name}: {current.Message}");
+                current = current.InnerException;
+            }
+            return string.Join(" --> ", messages);
         }
 
         /// <summary>

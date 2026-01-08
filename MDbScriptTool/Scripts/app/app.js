@@ -1518,13 +1518,15 @@
                 os.emit('fetch-connection-dbs', app.buildConnectionString(app.connection), app.connection.id);
             }
         };
-        os.on('connection-dbs-fetched', function (err, dbs, id) {
+        os.on('connection-dbs-fetched', function (err, dbs, id, fullMessage) {
             var connection = app.findBy(app.connections, 'id', id);
             dbs = dbs || [];
 
             if (err) {
                 console.log(err);
-                app.alert(err.Message, 'Error Listing Databases');
+                // Use fullMessage if available (includes inner exception details)
+                var errorMsg = fullMessage || err.Message;
+                app.alert(errorMsg, 'Error Listing Databases');
             } else {
                 if (connection) {
                     // Pull out properties
@@ -1615,7 +1617,10 @@
         app.buildConnectionString = function (connection) {
             if (!connection) return '';
             var connStr = connection.raw || '';
-            if (connection.password && !connection.integratedSecurity) {
+            // Determine auth type (backwards compatible with integratedSecurity)
+            var authType = connection.authType || (connection.integratedSecurity ? 'windows' : 'sql');
+            // Only add password for SQL authentication
+            if (authType === 'sql' && connection.password) {
                 // Add password to connection string - encrypted password is Base64 safe
                 connStr = 'Password=' + connection.password + ';' + connStr;
             }

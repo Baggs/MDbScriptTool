@@ -8,6 +8,7 @@
     const usernameRegex = new RegExp('User ID=[^;]*;', 'i');
     const passwordRegex = new RegExp('Password=[^;]*;', 'i');
     const integratedSecurityRegex = new RegExp('(?:Integrated Security|Trusted_Connection)=[^;]*;', 'i');
+    const authenticationRegex = new RegExp('Authentication=[^;]*;', 'i');
     const databaseRegex = new RegExp('(?:Initial Catalog|Database)=[^;]*;', 'i');
     const timeoutRegex = new RegExp('(?:Connection|Connect) Timeout=[^;]*;', 'i');
 
@@ -15,7 +16,8 @@
     var $selectConnections = $('.select-connections', $dlg);
     var $name = $('.name', $dlg);
     var $server = $('.server', $dlg);
-    var $integratedSecurity = $('#integrated-security', $dlg);
+    var $authType = $('.auth-type', $dlg);
+    var $credentialsGroup = $('.credentials-group', $dlg);
     var $username = $('.username', $dlg);
     var $password = $('.password', $dlg);
     var $connStr = $('.connection-string', $dlg);
@@ -41,7 +43,7 @@
 
     // Reset fields
     function resetFields() {
-        $integratedSecurity.prop('checked', false).change();
+        $authType.val('sql').change();
         $('input', $dlg).val('').removeClass('is-valid').removeClass('is-invalid');
         $advancedContainer.collapse('hide');
         $confirmSql.prop('checked', false);
@@ -89,7 +91,9 @@
                 $deleteBtn.removeClass('hidden');
                 $name.val(conn.name);
                 $server.val(conn.server);
-                $integratedSecurity.prop('checked', !!conn.integratedSecurity).change();
+                // Set auth type (backwards compatibility: integratedSecurity -> windows)
+                var authType = conn.authType || (conn.integratedSecurity ? 'windows' : 'sql');
+                $authType.val(authType).change();
                 $username.val(conn.username);
                 // Decrypt password for display (if encrypted)
                 if (conn.password) {
@@ -140,17 +144,29 @@
         }
     }, 100));
 
-    $integratedSecurity.on('change', function () {
-        var checked = $integratedSecurity.is(':checked');
+    $authType.on('change', function () {
+        var authType = $authType.val();
         var connStr = $connStr.val();
-        $username.prop('disabled', checked).removeClass('is-invalid is-valid');
-        $password.prop('disabled', checked).removeClass('is-invalid is-valid');
+        var needsCredentials = (authType === 'sql');
 
-        if (integratedSecurityRegex.test(connStr)) {
-            $connStr.val(connStr.replace(integratedSecurityRegex, 'Integrated Security=' + checked + ';'));
-        } else {
-            $connStr.val(`Integrated Security=${checked};${connStr}`);
+        // Show/hide username and password fields
+        $credentialsGroup.toggle(needsCredentials);
+        $username.prop('disabled', !needsCredentials).prop('required', needsCredentials).removeClass('is-invalid is-valid');
+        $password.prop('disabled', !needsCredentials).prop('required', needsCredentials).removeClass('is-invalid is-valid');
+
+        // Update connection string based on auth type
+        // First, remove any existing auth-related settings
+        connStr = connStr.replace(integratedSecurityRegex, '');
+        connStr = connStr.replace(authenticationRegex, '');
+
+        if (authType === 'windows') {
+            connStr = `Integrated Security=True;${connStr}`;
+        } else if (authType === 'azuread') {
+            connStr = `Authentication=Active Directory Default;${connStr}`;
         }
+        // For 'sql' type, no special auth parameter needed (uses username/password)
+
+        $connStr.val(connStr);
     });
 
     $username.on('keydown change', app.debounce(function () {
@@ -250,8 +266,13 @@
         if (connBuilder['User ID']) {
             $username.val(connBuilder['User ID']);
         }
-        if (connBuilder['Integrated Security']) {
-            $integratedSecurity.prop('checked', connBuilder['Integrated Security'] === 'True').change();
+        // Detect authentication type
+        if (connBuilder['Authentication'] && connBuilder['Authentication'].toLowerCase().indexOf('active directory') >= 0) {
+            $authType.val('azuread').change();
+        } else if (connBuilder['Integrated Security'] === 'True' || connBuilder['Integrated Security'] === true) {
+            $authType.val('windows').change();
+        } else {
+            $authType.val('sql').change();
         }
         if (connBuilder['Initial Catalog']) {
             $database.val(connBuilder['Initial Catalog']);
@@ -273,8 +294,8 @@
     var _hideAfterSave = false; // Whether to hide the dialog after saving. We hide when a connection is added.
 
     $addBtn.click(function () {
-        // Verify fields
-        $('input', $dlg).not('.connection-string, #confirm-sql-execution, #integrated-security').each(function () {
+        // Verify fields (skip disabled fields)
+        $('input:not(:disabled)', $dlg).not('.connection-string, #confirm-sql-execution').each(function () {
             var $this = $(this);
 
             if ($this[0].checkValidity()) {
@@ -287,6 +308,7 @@
         // Encrypt password before saving
         if ($('input.is-invalid', $dlg).length === 0) {
             var id = $selectConnections.val();
+            var authType = $authType.val();
 
             if (id === 'new') {
                 app.loading.show('Adding...');
@@ -295,7 +317,8 @@
                     id: app.id('c'),
                     name: $name.val(),
                     server: $server.val(),
-                    integratedSecurity: $integratedSecurity.is(':checked'),
+                    authType: authType,
+                    integratedSecurity: authType === 'windows', // backwards compatibility
                     username: $username.val(),
                     password: $password.val(),
                     database: $database.val(),
@@ -311,7 +334,8 @@
 
                     conn.name = $name.val();
                     conn.server = $server.val();
-                    conn.integratedSecurity = $integratedSecurity.is(':checked');
+                    conn.authType = authType;
+                    conn.integratedSecurity = authType === 'windows'; // backwards compatibility
                     conn.username = $username.val();
                     conn.password = $password.val();
                     conn.database = $database.val();
@@ -323,7 +347,8 @@
                 }
             }
 
-            if ($password.val()) {
+            // Only encrypt password if using SQL authentication
+            if (authType === 'sql' && $password.val()) {
                 os.emit('encrypt-password', $password.val());
             } else {
                 _save();
