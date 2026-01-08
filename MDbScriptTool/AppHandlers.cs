@@ -40,6 +40,7 @@ namespace Tokafew420.MDbScriptTool
             // Register event handlers
             UiEvent.On("parse-connection-string", ParseConnectionString);
             UiEvent.On("encrypt-password", EncryptPassword);
+            UiEvent.On("decrypt-password", DecryptPassword);
             UiEvent.On("fetch-connection-dbs", GetDatabases);
             UiEvent.On("execute-sql", ExecuteSql);
             UiEvent.On("parse-sql", ParseSql);
@@ -170,6 +171,43 @@ namespace Tokafew420.MDbScriptTool
                 // Do nothing
                 _app.Logger.Error(e.ToString());
                 OsEvent.Emit(replyMsgName, e);
+            }
+        }
+
+        /// <summary>
+        /// Decrypts the password.
+        /// </summary>
+        /// <param name="args">Expects:
+        /// [0] The encrypted password to decrypt.
+        /// </param>
+        /// <remarks>
+        /// Emits event: password-decrypted
+        /// Event params:
+        /// [0] <see cref="Exception"/> if any.
+        /// [1] The decrypted password.
+        /// </remarks>
+        private void DecryptPassword(object[] args)
+        {
+            var replyMsgName = "password-decrypted";
+
+            if (args == null || args.Length != 1 || string.IsNullOrWhiteSpace(args[0] as string))
+            {
+                OsEvent.Emit(replyMsgName, new ArgumentNullException("password"));
+                return;
+            }
+            var cipher = args[0] as string;
+
+            try
+            {
+                var pass = Crypto.Decrypt(cipher);
+                OsEvent.Emit(replyMsgName, null, pass);
+            }
+            catch (Exception e)
+            {
+                // If decryption fails, the password might not be encrypted
+                // Return it as-is (for backwards compatibility)
+                _app.Logger.Debug($"Password decryption failed, returning as-is: {e.Message}");
+                OsEvent.Emit(replyMsgName, null, cipher);
             }
         }
 

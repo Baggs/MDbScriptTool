@@ -1515,7 +1515,7 @@
             if (app.connection && app.connection.raw) {
                 app.emit('fetch-connection-dbs', app.connection);
                 app.loading.show('Getting Databases...');
-                os.emit('fetch-connection-dbs', app.connection.raw, app.connection.id);
+                os.emit('fetch-connection-dbs', app.buildConnectionString(app.connection), app.connection.id);
             }
         };
         os.on('connection-dbs-fetched', function (err, dbs, id) {
@@ -1606,6 +1606,23 @@
         $(window).on('resize', app.redraw);
 
         /**
+         * Builds a connection string from a connection object, adding the encrypted password.
+         * The encrypted password is Base64 URL-safe and won't contain special characters like ';'.
+         *
+         * @param {object} connection The connection object containing raw and password.
+         * @returns {string} The complete connection string with password.
+         */
+        app.buildConnectionString = function (connection) {
+            if (!connection) return '';
+            var connStr = connection.raw || '';
+            if (connection.password && !connection.integratedSecurity) {
+                // Add password to connection string - encrypted password is Base64 safe
+                connStr = 'Password=' + connection.password + ';' + connStr;
+            }
+            return connStr;
+        };
+
+        /**
          * Executes the given sql. If no arguments are provided, then the sql from the current instance is executed.
          *
          * @param {string} connectionString The target server connection string.
@@ -1657,7 +1674,7 @@
                                         timeout: app.instance.timeout
                                     });
 
-                                    return app.executeSql(app.connection.raw, dbs, sql, app.instance.id, opts);
+                                    return app.executeSql(app.buildConnectionString(app.connection), dbs, sql, app.instance.id, opts);
                                 }
                             });
 
@@ -1764,7 +1781,7 @@
          */
         app.parseSql = function (connectionString, sql, id) {
             if (connectionString && typeof connectionString === 'string') {
-                os.emit('parse-sql', app.connection.raw, sql, id);
+                os.emit('parse-sql', connectionString, sql, id);
                 return true;
             } else {
                 if (app.instance && app.connection) {
@@ -1778,7 +1795,7 @@
 
                         app.instance.totalRows = null;
                         app.instance.pending = 1;
-                        app.parseSql(app.connection.raw, sql, app.instance.id);
+                        app.parseSql(app.buildConnectionString(app.connection), sql, app.instance.id);
                     }
                 }
             }

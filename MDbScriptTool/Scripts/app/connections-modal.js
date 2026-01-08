@@ -91,14 +91,27 @@
                 $server.val(conn.server);
                 $integratedSecurity.prop('checked', !!conn.integratedSecurity).change();
                 $username.val(conn.username);
-                $password.val(conn.password);
+                // Decrypt password for display (if encrypted)
+                if (conn.password) {
+                    os.emit('decrypt-password', conn.password);
+                } else {
+                    $password.val('');
+                }
                 $confirmSql.prop('checked', !!conn.confirmSql);
                 $database.val(conn.database);
                 $timeout.val(conn.timeout);
-                $connStr.val(conn.raw);
+                // Show connection string without password (password is stored separately)
+                $connStr.val(conn.raw.replace(passwordRegex, ''));
 
                 $addBtn.text('Save');
             }
+        }
+    });
+
+    // Handle decrypted password from backend
+    os.on('password-decrypted', function (err, plainPassword) {
+        if (!err && plainPassword) {
+            $password.val(plainPassword);
         }
     });
 
@@ -158,15 +171,8 @@
     }, 100));
 
     $password.on('keydown change', app.debounce(function () {
-        var password = $password.val();
-        var connStr = $connStr.val();
-
-        if (passwordRegex.test(connStr)) {
-            $connStr.val(connStr.replace(passwordRegex, 'Password=' + password + ';'));
-        } else {
-            $connStr.val(`Password=${password};${connStr}`);
-        }
-
+        // Don't sync password to connection string - it's stored separately
+        // This avoids issues with special characters like ; in passwords
         if ($password[0].checkValidity()) {
             $password.removeClass('is-invalid').addClass('is-valid');
         } else {
@@ -334,17 +340,17 @@
             app.loading.hide();
             return;
         }
-        var connStr = $connStr.val();
 
+        // Store encrypted password separately - don't embed in connection string
+        // This avoids issues with special characters like ; in passwords
         _tmpConn.password = cipher;
 
+        // Remove any existing password from the connection string
+        var connStr = $connStr.val();
         if (passwordRegex.test(connStr)) {
-            _tmpConn.raw = connStr = connStr.replace(passwordRegex, 'Password=' + _tmpConn.password + ';');
-        } else {
-            _tmpConn.raw = connStr = `Password=${_tmpConn.password};${connStr}`;
+            connStr = connStr.replace(passwordRegex, '');
         }
-
-        $password.val(cipher);
+        _tmpConn.raw = connStr;
         $connStr.val(connStr);
 
         _save();
