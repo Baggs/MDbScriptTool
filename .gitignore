@@ -303,3 +303,4 @@ __pycache__/
 /MDbScriptTool/Content/cm-tsql-fold.min.css
 /MDbScriptTool/Scripts/*.min.js
 /MDbScriptTool/Scripts/*.min.js.map
+.claude/
